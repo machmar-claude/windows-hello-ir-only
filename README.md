@@ -9,13 +9,36 @@ This script removes that group, so Hello uses the IR camera on its own. The webc
 
 ## Use
 
-1. Double-click **`fix.cmd`** and accept the admin prompt.
+1. Download `windows-hello-ir-only.zip` from [Releases](../../releases/latest) and extract it.
+   Double-click **`fix.cmd`** and accept the admin prompt.
 2. Reboot.
 3. Settings → Accounts → Sign-in options → Facial recognition: **Remove**, then set it up again.
    The setup preview should now be black-and-white.
 
 To go back: double-click **`undo.cmd`**, reboot, set up face recognition again.
 Undo uses the `backup` folder that `fix.cmd` creates next to the script, so keep that folder.
+
+## How it works
+
+Windows' camera service (Frame Server) bundles cameras into **sensor groups**. Cameras that carry the
+same `FSSensorGroupID` value end up in one group. That value comes from the camera driver's INF or from
+the camera's own firmware. Windows Hello signs you in through a group that has a face sign-in stream.
+When that group holds both the colour and the IR camera, Hello checks the colour picture as well.
+
+`hello-ir-only.ps1`:
+
+1. Reads the groups Windows has published under
+   `HKLM\SOFTWARE\Microsoft\Windows Media Foundation\FrameServer\SensorGroups` and picks the ones that
+   combine two or more cameras and have a face sign-in stream.
+2. For each camera in such a group, finds where the group is stored: the camera's device key
+   (`Enum\...\Device Parameters`) and each of its device-interface keys (`Control\DeviceClasses\...`).
+3. Backs up each of those keys to `backup\*.reg`, then deletes `FSSensorGroupID` / `FSSensorGroupName`
+   (and the `UVC-` versions) from them.
+4. Restarts the cameras, the camera service and the biometric service.
+
+After a reboot, Windows publishes each camera as its own group. The IR camera alone still has a face
+sign-in stream, so Hello uses it. The colour camera alone is a normal webcam.
+`undo.cmd` imports the `.reg` backups, which puts the values back.
 
 ## Notes
 
